@@ -25,6 +25,15 @@ Your workout and food data is never uploaded; hosting only serves the app files.
 5. Test it: turn on Airplane Mode, open the app, log something.
 Always open it from the home screen icon. Data saved in Safari and in the home-screen app is stored separately on iOS, so pick one and stay with it (use the home-screen app, and restore a backup there if you tested in Safari first).
 
+## Import workouts from text or a Google Sheet
+Training, History, "Import workouts" (also in Settings). Paste text or cells copied from a sheet, or paste a Google Sheet link, then tap "Read & analyze". You see a summary (sets per muscle, push/pull/legs, progress per exercise) before anything is saved.
+- Text layouts: `Bench Press 4x8 @ 60`, `Overhead Press 3x10 40kg`, `Deadlift 100x5, 110x3`, `Squat: 80 x 8 x 4`. A line with a date (`2026-10-12`, `12/10/2026`) or a title (`Push day`) starts a new workout. Arabic digits and common Arabic exercise names work.
+- Table layouts (copied from a sheet, or CSV): a header row with columns like Date, Exercise, Sets, Reps, Weight (Arabic headers also work). Reps and weights can be lists such as `8,8,6` and `60/62.5/65`.
+- Plain weights are read in your current unit (Settings, Units). Write `kg` or `lb` to override.
+- Google Sheet link: the sheet must be shared as "Anyone with the link can view", or published to the web as CSV. If loading fails, copy the cells and paste them instead.
+- Importing the same data twice is safe: workouts already in your history are skipped.
+- Not supported yet: timed sets (`Plank 3x60s`) and cardio distance. These lines are listed as "could not be read".
+
 ## Keep and restore your data
 - Settings, Export backup: downloads `nexfit-backup-DATE.json`. Choose to include photos or not.
 - If the download does nothing, use Copy to clipboard and paste the text into Notes.

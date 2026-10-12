@@ -243,7 +243,7 @@ textarea.in { resize: vertical; line-height: 1.4; }
 <script>
 'use strict';
 /* NEX FIT core: helpers, storage (IndexedDB), units, calculations, sheets */
-const VERSION = '1.0.0', SCHEMA = 1;
+const VERSION = '1.1.0', SCHEMA = 1;
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -854,6 +854,7 @@ function renderTraining() {
     h += `<div class="searchbar"><input class="in" id="ex-q" type="search" placeholder="Search exercises" value="${esc(ui.exQ)}" data-in="ex-q" autocomplete="off"><button class="btn primary" data-act="ex-new">${ico('plus', 16)} New</button></div><div class="chips scroll">${['All', ...MUSCLES].map(m => `<button class="chip${(ui.exM || 'All') === m ? ' on' : ''}" data-act="ex-mus" data-m="${m}">${m}</button>`).join('')}</div><div id="ex-list">${exList(ui.exQ, ui.exM)}</div>`;
   } else {
     const ws = sortedWorkouts().reverse(), prs = allPRs();
+    h += `<button class="btn" data-act="tx-open">${ico('plus', 16)} Import workouts (text or Google Sheet)</button>`;
     h += ws.length ? ws.map(w => { const st = wkStats(w), n = prs.filter(p => p.wid === w.id).length; return `<button class="card hrow" data-act="wk-view" data-id="${w.id}"><div class="en"><b>${esc(w.name)}</b><small>${esc(fmtDate(w.date))} · ${st.ex} exercise${st.ex === 1 ? '' : 's'} · ${st.sets} set${st.sets === 1 ? '' : 's'}${st.vol != null ? ' · ' + fW(st.vol, 0) + ' ' + wUnit() : ''}${w.dur ? ' · ' + Math.round(w.dur / 60) + ' min' : ''}</small></div>${n ? `<span class="badge">${n} PR</span>` : ''}</button>`; }).join('') : `<div class="empty"><p><b>No workouts saved yet.</b> Start one from the Plans tab. Finished workouts appear here and can be reviewed, edited or repeated.</p></div>`;
   }
   return h;
@@ -1417,6 +1418,7 @@ function renderSettings() {
   h += `<section class="card"><h3>Daily targets</h3><p class="note">Your own goals. Leave a field empty for no target. Nutrition values are estimates, not medically precise.</p><div class="grid2">${[['kcal', 'Calories (kcal)'], ['p', 'Protein (g)'], ['c', 'Carbs (g)'], ['f', 'Fat (g)']].map(([k, n]) => `<div><label class="lbl" for="tg-${k}">${n}</label><input class="in" id="tg-${k}" inputmode="decimal" data-in="set-target" data-k="${k}" value="${tg[k] ?? ''}" autocomplete="off"></div>`).join('')}</div></section>`;
   h += `<section class="card"><h3>Units</h3><label class="lbl">Weight</label>${tSeg('set-wunit', s.wUnit, [['kg', 'Kilograms'], ['lb', 'Pounds']])}<label class="lbl">Body measurements</label>${tSeg('set-lunit', s.lUnit, [['cm', 'Centimeters'], ['in', 'Inches']])}<p class="note">Data is stored in kg and cm, so switching units never loses precision. Food is always in grams and milliliters.</p></section>`;
   h += `<section class="card"><h3>Workout timer</h3><label class="lbl" for="set-rest">Default rest (seconds)</label><input class="in" id="set-rest" inputmode="numeric" data-in="set-rest" value="${s.rest}">${toggle('set-restauto', s.restAuto, 'Start rest after each set', 'Starts when you tick a set done')}${toggle('set-restalert', s.restAlert, 'Alert when rest ends', 'Sound always plays while the app is open; vibration where supported')}${np === 'default' ? `<button class="btn sm" data-act="set-notif">Allow notifications</button>` : ''}<p class="note">${np === 'granted' ? 'Notifications are allowed.' : np === 'denied' ? 'Notifications are blocked in your browser settings.' : np === 'unsupported' ? 'This browser does not support notifications.' : ''} On iPhone, a locked or backgrounded app cannot ring the timer. Keep NEX FIT open during rest; the timer stays accurate when you come back.</p></section>`;
+  h += `<section class="card"><h3>Import workouts</h3><p class="note">Paste workout text or load a Google Sheet. NEX FIT reads sets, reps and weights, shows an analysis, and saves them to your history.</p><button class="btn" data-act="tx-open">Import workouts</button></section>`;
   h += `<section class="card"><h3>Backup &amp; restore</h3><p class="muted sm">Last backup: <b>${esc(fmtStamp(s.lastBackup))}</b></p><p class="note">${esc(counts())}. Everything is stored on this device only.</p><div class="two"><button class="btn primary" data-act="set-export">Export backup</button><button class="btn" data-act="set-import">Restore backup</button></div>${storageOK ? '' : '<p class="note" style="color:var(--bad)">Storage is unavailable in this browser session. Your data will be lost when you close this page. Export a backup before leaving.</p>'}</section>`;
   h += `<section class="card"><h3>Reset</h3><div class="two"><button class="btn danger-t" data-act="rs" data-v="workouts">Clear workout history</button><button class="btn danger-t" data-act="rs" data-v="food">Clear food diary</button><button class="btn danger-t" data-act="rs" data-v="body">Clear body data &amp; photos</button><button class="btn danger-t" data-act="rs" data-v="all">Reset everything</button></div><p class="note">Each reset asks for confirmation. Export a backup first if you might want the data back.</p></section>`;
   h += `<section class="card"><h3>About</h3><p>NEX FIT <b class="num">v${VERSION}</b></p><p class="muted sm">Offline: <span style="color:${offlineState.ok ? 'var(--accent)' : 'var(--warn)'}">${esc(offlineState.text)}</span></p>
@@ -1566,6 +1568,303 @@ ACT['im-go'] = async el => {
   } catch (e) { console.error(e); toast('Restore failed. Your existing data was not changed.', 'err'); return; }
   STORES.forEach(st => { S[st] = c.data[st]; }); S.settings = c.settings; S.active = c.active; S.meta.seeded = true; wkVersion++;
   closeSheet(s); sheets.slice().forEach(x => closeSheet(x)); applyTheme(); rerender(); toast('Backup restored');
+};
+
+/* ================= Import workouts from pasted text / Google Sheet ================= */
+/* Reads free text ("Squat 4x8 @ 80"), tab/CSV tables (copied from Google Sheets) or a Google Sheet link,
+   turns them into NEX FIT workouts, previews an analysis, then saves to history. Nothing leaves the device
+   except the optional fetch of the sheet link you give it. */
+const TX_NUM = '(\\d+(?:\\.\\d+)?)';
+const TX_UNIT = '((?:kgs?|lbs?|pounds?|كجم|كيلو|كغم|كغ)(?![A-Za-z\\u0600-\\u06FF]))';
+const TX_DIG = { '٠': 0, '١': 1, '٢': 2, '٣': 3, '٤': 4, '٥': 5, '٦': 6, '٧': 7, '٨': 8, '٩': 9, '۰': 0, '۱': 1, '۲': 2, '۳': 3, '۴': 4, '۵': 5, '۶': 6, '۷': 7, '۸': 8, '۹': 9 };
+const txNorm = t => String(t == null ? '' : t).replace(/[٠-٩۰-۹]/g, c => TX_DIG[c]).replace(/[×✕✖]/g, 'x').replace(/٫/g, '.').replace(/،/g, ',').replace(/\r/g, '');
+const txRound = v => Math.round(v * 1000) / 1000;
+function txKg(v, unit) {
+  if (unit && /^(lb|pound)/i.test(unit)) return txRound(v / KG2LB);
+  if (unit) return txRound(v);
+  return dispToKg(v);
+}
+
+/* ---- dates ---- */
+function txMkDate(y, m, d) {
+  y = +y; m = +m; d = +d; if (y < 100) y += 2000;
+  const dt = new Date(y, m - 1, d);
+  return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d && y >= 2000 && y <= 2100 ? ymd(dt) : null;
+}
+function txExtractDate(line) {
+  let m = line.match(/(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+  if (m) { const d = txMkDate(m[1], m[2], m[3]); if (d) return { date: d, rest: line.replace(m[0], ' ') }; }
+  m = line.match(/(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})/);
+  if (m) {
+    let a = +m[1], b = +m[2], d;
+    if (b > 12) d = txMkDate(m[3], a, b); else d = txMkDate(m[3], b, a); // day/month by default, month/day only when the day is obvious
+    if (d) return { date: d, rest: line.replace(m[0], ' ') };
+  }
+  m = line.match(/(^|\s)(\d{1,2})\/(\d{1,2})(?=\s|$|[:,-])/);
+  if (m && !/x/.test(line)) { const d = txMkDate(new Date().getFullYear(), m[3], m[2]); if (d) return { date: d, rest: line.replace(m[0], ' ') }; }
+  return null;
+}
+
+/* ---- one exercise's sets from the text after its name ---- */
+function txParseSets(rest) {
+  let t = ' ' + txNorm(rest).toLowerCase() + ' ';
+  t = t.replace(/(\d),(\d)/g, '$1.$2')
+    .replace(/(\d+)\s*sets?\s*(?:x|of)?\s*(\d+)\s*reps?/g, '$1x$2')
+    .replace(/(\d+)\s*(?:سيتات|سيت|مجموعات|مجموعة)\s*(?:x|في)?\s*(\d+)\s*(?:تكرارات|تكرار|ريب)?/g, '$1x$2')
+    .replace(/\bof\b/g, 'x').replace(/\b(sets?|reps?|bw|bodyweight)\b/g, ' ')
+    .replace(/(سيتات|سيت|مجموعات|مجموعة|تكرارات|تكرار|ريب|وزن الجسم)/g, ' ');
+  const N = TX_NUM, U = TX_UNIT, R = `${N}(?:\\s*-\\s*\\d+)?`;
+  const mk = (n, r, w) => Array.from({ length: Math.max(1, Math.min(Math.round(n), 50)) }, () => ({ w, r: Math.round(r) }));
+  let m;
+  if ((m = t.match(new RegExp(`^\\s*${N}\\s*x\\s*${R}\\s*(?:@|with|w/|at)\\s*${N}\\s*${U}?`)))) return mk(+m[1], +m[2], txKg(+m[3], m[4]));
+  if ((m = t.match(new RegExp(`^\\s*${N}\\s*x\\s*${R}\\s+${N}\\s*${U}\\s*$`)))) return mk(+m[1], +m[2], txKg(+m[3], m[4]));
+  if ((m = t.match(new RegExp(`^\\s*${N}\\s*x\\s*${R}\\s+${N}\\s*$`)))) return mk(+m[1], +m[2], txKg(+m[3]));
+  if ((m = t.match(new RegExp(`^\\s*${N}\\s*${U}\\s+${N}\\s*x\\s*${R}\\s*$`)))) return mk(+m[3], +m[4], txKg(+m[1], m[2]));
+  if ((m = t.match(new RegExp(`^\\s*${N}\\s*${U}?\\s*x\\s*${N}\\s*x\\s*${N}\\s*$`)))) {
+    const a = +m[1], b = +m[3], c = +m[4];
+    return a >= c ? mk(c, b, txKg(a, m[2])) : mk(a, b, txKg(c));
+  }
+  const re = new RegExp(`${N}\\s*${U}?\\s*x\\s*${R}`, 'g'), pairs = []; let rem = t, p;
+  while ((p = re.exec(t))) { const rm = p[0].match(new RegExp(`^${N}\\s*${U}?\\s*x\\s*${N}`)); pairs.push({ a: +rm[1], u: rm[2], b: +rm[3] }); }
+  rem = t.replace(re, ' ');
+  if (pairs.length && /^[\s,;|+&/-]*$/.test(rem)) {
+    if (pairs.length === 1 && !pairs[0].u && Number.isInteger(pairs[0].a) && pairs[0].a <= 10) return mk(pairs[0].a, pairs[0].b, null);
+    return pairs.map(q => ({ w: txKg(q.a, q.u), r: Math.round(q.b) }));
+  }
+  return null;
+}
+
+/* ---- exercise name matching ---- */
+const txKey = s => String(s || '').toLowerCase().replace(/[^a-z0-9؀-ۿ]+/g, '');
+/* common short / Arabic names -> the app's exercise names (only used if that exercise exists) */
+const TX_ALIAS = {
+  squat: 'Back Squat', squats: 'Back Squat', bench: 'Barbell Bench Press', benchpress: 'Barbell Bench Press', ohp: 'Overhead Press', militarypress: 'Overhead Press', shoulderpress: 'Dumbbell Shoulder Press',
+  row: 'Barbell Row', rows: 'Barbell Row', curl: 'Barbell Curl', curls: 'Barbell Curl', chinup: 'Pull-up', chinups: 'Pull-up', dip: 'Triceps Dip', dips: 'Triceps Dip', rdl: 'Romanian Deadlift',
+  calfraise: 'Standing Calf Raise', calfraises: 'Standing Calf Raise', lunge: 'Walking Lunge', lunges: 'Walking Lunge', legcurl: 'Seated Leg Curl', pulldown: 'Lat Pulldown', pushdown: 'Cable Triceps Pushdown',
+  بنش: 'Barbell Bench Press', بنشبرس: 'Barbell Bench Press', بنشبريس: 'Barbell Bench Press', سكوات: 'Back Squat', سكوتس: 'Back Squat', ديدلفت: 'Deadlift', ديدليفت: 'Deadlift', بلانك: 'Plank',
+  بوشاب: 'Push-up', عقلة: 'Pull-up', بولاب: 'Pull-up', جري: 'Running', ليجبرس: 'Leg Press', ليجبريس: 'Leg Press', هيبثرست: 'Hip Thrust', لاتبولداون: 'Lat Pulldown', بولداون: 'Lat Pulldown', كيرل: 'Barbell Curl'
+};
+function txFindEx(name) {
+  const k = txKey(name); if (!k) return null;
+  const nm = e => txKey(e.name);
+  let hit = S.exercises.find(e => nm(e) === k); if (hit) return hit;
+  if (TX_ALIAS[k]) { hit = S.exercises.find(e => e.name === TX_ALIAS[k]); if (hit) return hit; }
+  const k2 = k.replace(/s$/, '');
+  hit = S.exercises.find(e => nm(e).replace(/s$/, '') === k2); if (hit) return hit;
+  const c = S.exercises.filter(e => { const n = nm(e); return n.length >= 4 && k.length >= 4 && (n.includes(k) || k.includes(n)); });
+  return c.length === 1 ? c[0] : null;
+}
+const TX_HINTS = [
+  [/bench|chest|fly|flye|pec|push.?up|dip|صدر|بنش|ضغط/, 'Chest'], [/row|pull.?up|chin|lat |lat$|pulldown|deadlift|back|ظهر|سحب|رفرفة خلفية|تجديف/, 'Back'],
+  [/shoulder|lateral|overhead|ohp|military|face.?pull|كتف|اكتاف|أكتاف|جانبي/, 'Shoulders'], [/bicep|curl|باي|بايسبس/, 'Biceps'], [/tricep|pushdown|skull|extension|تراي|ترايسبس/, 'Triceps'],
+  [/squat|leg.?press|lunge|quad|extension|سكوات|رجل|فخذ|امامي|أمامي/, 'Quads'], [/hamstring|leg.?curl|rdl|romanian|خلفي/, 'Hamstrings'], [/glute|hip.?thrust|جلوتس|مؤخرة/, 'Glutes'],
+  [/calf|سمانة|بطات/, 'Calves'], [/plank|crunch|abs|core|sit.?up|بطن|كرانش/, 'Core'], [/run|cardio|bike|treadmill|walk|جري|كارديو|مشي/, 'Cardio']
+];
+const txMuscle = (exId, name) => { const e = exId && exById(exId); if (e && e.muscle) return e.muscle; const n = String(name || '').toLowerCase(); const h = TX_HINTS.find(x => x[0].test(n)); return h ? h[1] : 'Unassigned'; };
+function txEntry(name, sets, rpe, notes) {
+  name = String(name || '').replace(/\s+/g, ' ').trim();
+  const ex = txFindEx(name);
+  return { exId: ex ? ex.id : null, name: ex ? ex.name : name, notes: notes || '', sets: sets.map(s => ({ w: s.w == null ? null : s.w, r: s.r, rpe: rpe || null, done: true })) };
+}
+
+/* ---- free text ---- */
+function txParseText(text) {
+  const blocks = [], warns = []; let cur = null;
+  const start = (name, date) => { cur = { name: name || '', date: date || null, exercises: [] }; blocks.push(cur); };
+  const cleanName = s => s.replace(/^[\s:|,.\-–—]+|[\s:|,.\-–—]+$/g, '').replace(/\s+/g, ' ');
+  txNorm(text).split('\n').forEach(raw => {
+    let line = raw.replace(/\t+/g, ' ').replace(/^[\s\-*•·#>]+/, '').replace(/^\d+\s*[.)]\s+/, '').trim();
+    if (!line) return;
+    const dd = txExtractDate(line);
+    if (dd) { start('', dd.date); line = cleanName(dd.rest); if (!line) return; }
+    if (!/\d/.test(line)) {
+      const nm = cleanName(line); if (!nm) return;
+      if (!cur || cur.exercises.length) start(nm); else cur.name = cur.name ? cur.name + ' · ' + nm : nm;
+      return;
+    }
+    let rpe = null; const rm = line.match(/rpe\s*[:@]?\s*(\d+(?:\.\d+)?)/i);
+    if (rm) { const v = parseFloat(rm[1]); if (v >= 5 && v <= 10) rpe = v; line = line.replace(rm[0], ' '); }
+    const fd = line.search(/\d/), name = cleanName(line.slice(0, fd).replace(/[@(]\s*$/, '')), sets = name ? txParseSets(line.slice(fd)) : null;
+    if (!name || !sets) { warns.push(raw.trim()); return; }
+    if (!cur) start('');
+    cur.exercises.push(txEntry(name, sets, rpe));
+  });
+  return { blocks, warns };
+}
+
+/* ---- tables (tab / comma separated, as copied or exported from Google Sheets) ---- */
+function txCSV(text, delim) {
+  const rows = []; let row = [], cell = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) { if (c === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += c; }
+    else if (c === '"' && cell === '') q = true;
+    else if (c === delim) { row.push(cell); cell = ''; }
+    else if (c === '\n') { row.push(cell); rows.push(row); row = []; cell = ''; }
+    else if (c !== '\r') cell += c;
+  }
+  row.push(cell); rows.push(row);
+  return rows.filter(r => r.some(c => c.trim() !== ''));
+}
+const TX_ROLES = [
+  ['rpe', /rpe/], ['date', /date|تاريخ/], ['notes', /note|ملاحظ/], ['ex', /exercise|movement|lift|تمرين|تمارين|حركة|^name$|^اسم/],
+  ['reps', /rep|تكرار|ريب/], ['w', /weight|load|\bkg\b|\blbs?\b|وزن|كجم|كيلو/], ['sets', /sets|سيتات|مجموعات|عدد السيت/],
+  ['setNo', /^set$|^set\s*#|^set\s*no|^سيت$|رقم السيت/], ['wk', /workout|session|plan|routine|^day$|^اليوم$|^يوم$|تمرينة|حصة/]
+];
+function txHeader(row) {
+  const roles = {};
+  row.forEach((h, i) => { const t = txNorm(h).trim().toLowerCase(); if (!t) return; const r = TX_ROLES.find(([k, re]) => roles[k] === undefined && re.test(t)); if (r) roles[r[0]] = i; });
+  return roles.ex !== undefined && (roles.reps !== undefined || roles.sets !== undefined) ? roles : null;
+}
+function txNums(cell) {
+  const t = txNorm(cell).toLowerCase();
+  if (/^\s*\d+(?:\.\d+)?\s*-\s*\d+(?:\.\d+)?\s*[a-z؀-ۿ]*\s*$/.test(t)) return [parseFloat(t)];
+  return (t.match(/\d+(?:\.\d+)?/g) || []).map(parseFloat);
+}
+function txParseTable(rows, hdrIdx, roles, headerUnit) {
+  const map = new Map(), warns = []; let lastDate = null, lastWk = '';
+  rows.slice(hdrIdx + 1).forEach(r => {
+    const g = k => roles[k] === undefined ? '' : txNorm(r[roles[k]] || '').trim();
+    const dc = g('date'); if (dc) { const d = txExtractDate(dc); if (d) lastDate = d.date; }
+    const wk = g('wk'); if (wk) lastWk = wk;
+    const name = g('ex'); if (!name) return;
+    const reps = txNums(g('reps')), wcell = g('w').toLowerCase(), ws = txNums(wcell), nSetsCell = parseFloat(g('sets'));
+    if (!reps.length && !(nSetsCell > 0)) { warns.push(r.join(' | ')); return; }
+    const unit = (wcell.match(new RegExp(TX_UNIT)) || [])[1] || headerUnit || null;
+    const n = roles.setNo !== undefined ? 1 : (nSetsCell > 0 ? Math.min(Math.round(nSetsCell), 50) : Math.max(reps.length, ws.length, 1));
+    const pick = (a, i) => a.length ? (a.length > 1 ? (a[i] != null ? a[i] : a[a.length - 1]) : a[0]) : null;
+    const sets = [];
+    for (let i = 0; i < n; i++) { const rr = pick(reps, i); if (rr == null) { warns.push(r.join(' | ')); return; } const w = pick(ws, i); sets.push({ w: w != null && w > 0 ? txKg(w, unit) : null, r: Math.round(rr) }); }
+    const rpeV = parseFloat(g('rpe')), key = (lastDate || '') + '|' + lastWk;
+    if (!map.has(key)) map.set(key, { name: lastWk, date: lastDate, exercises: [] });
+    const b = map.get(key), prev = b.exercises.find(e => txKey(e.name) === txKey((txFindEx(name) || { name }).name));
+    const e = txEntry(name, sets, rpeV >= 5 && rpeV <= 10 ? rpeV : null, g('notes'));
+    if (prev) prev.sets.push(...e.sets); else b.exercises.push(e);
+  });
+  return { blocks: [...map.values()], warns };
+}
+
+/* ---- entry point: decides table vs text ---- */
+function txParse(text) {
+  text = String(text || '').replace(/^﻿/, '');
+  const first = text.split('\n').find(l => l.trim()) || '';
+  const delim = first.includes('\t') ? '\t' : (first.split(';').length > first.split(',').length ? ';' : ',');
+  if (first.includes(delim)) {
+    const rows = txCSV(text, delim);
+    for (let i = 0; i < Math.min(3, rows.length); i++) {
+      const roles = txHeader(rows[i]);
+      if (roles) { const h = rows[i][roles.w] || ''; return txParseTable(rows, i, roles, /lb/i.test(h) ? 'lb' : /kg|كجم/i.test(h) ? 'kg' : null); }
+    }
+  }
+  return txParseText(text);
+}
+
+/* ---- blocks -> workouts, skipping ones already in history ---- */
+const txSig = w => w.date + '|' + w.exercises.map(e => txKey(e.name) + ':' + e.sets.map(s => (s.w || 0) + 'x' + s.r).join(',')).join(';');
+function txBuild(blocks, defDate) {
+  const have = new Set(S.workouts.map(txSig)), fresh = []; let dupes = 0;
+  blocks.filter(b => b.exercises.length).forEach((b, i) => {
+    const date = b.date || defDate, t0 = parseYmd(date).getTime() + 12 * 3600e3 + i * 60e3;
+    const w = { id: uid(), name: b.name || 'Imported workout', date, start: t0, end: t0, dur: 0, templateId: null, note: 'Imported', exercises: b.exercises };
+    const sig = txSig(w);
+    if (have.has(sig)) { dupes++; return; }
+    have.add(sig); fresh.push(w);
+  });
+  return { fresh, dupes };
+}
+
+/* ---- analysis of what is about to be imported (uses the app's own maths) ---- */
+function txAnalyze(ws) {
+  const all = S.workouts.concat(ws).slice().sort((a, b) => wkKey(a) < wkKey(b) ? -1 : 1), ids = new Set(ws.map(w => w.id)), per = {};
+  all.forEach(w => w.exercises.forEach(ex => { const s = sessionOf(w, ex); if (s) (per[exKey(ex)] = per[exKey(ex)] || []).push({ s, nw: ids.has(w.id), name: ex.name, exId: ex.exId }); }));
+  const exRows = [], flags = [], musc = {};
+  Object.values(per).forEach(list => {
+    const news = list.filter(x => x.nw); if (!news.length) return;
+    const name = news[0].name, firstNew = news[0].s, lastNew = news[news.length - 1].s, before = list.filter(x => !x.nw && x.s.key < firstNew.key).pop();
+    const base = before ? before.s : firstNew, useE = lastNew.e1 != null && base.e1 != null;
+    const a = useE ? base.e1 : base.topW, b = useE ? lastNew.e1 : lastNew.topW, d = b - a;
+    let line;
+    if (lastNew.topW > 0) line = `Top ${fWu(lastNew.topW, 1)} · est. 1RM ${fWu(lastNew.e1, 1)}${news.length > 1 || before ? ` · ${useE ? '1RM' : 'top weight'} ${d >= 0.05 ? '+' : d <= -0.05 ? '−' : '±'}${fW(Math.abs(d), 1)} ${wUnit()} vs ${before ? 'last logged' : 'first session'}` : ''}`;
+    else line = `Best ${lastNew.maxRepsBW} reps (bodyweight)`;
+    exRows.push({ name, n: news.length, line });
+    const l3 = list.slice(-3);
+    if (l3.length === 3 && l3.some(x => x.nw) && l3[0].s.topW > 0 && Math.max(...l3.map(x => x.s.e1 || x.s.topW)) <= (l3[0].s.e1 || l3[0].s.topW) + 0.01) flags.push(`${name}: no progress over the last 3 sessions`);
+  });
+  let sets = 0, vol = 0, volAny = false, dMin = null, dMax = null;
+  ws.forEach(w => {
+    if (dMin == null || w.date < dMin) dMin = w.date; if (dMax == null || w.date > dMax) dMax = w.date;
+    w.exercises.forEach(ex => { const m = txMuscle(ex.exId, ex.name); ex.sets.forEach(s => { if (!(s.r > 0)) return; sets++; musc[m] = (musc[m] || 0) + 1; if (s.w > 0) { vol += s.w * s.r; volAny = true; } }); });
+  });
+  const days = dMin && dMax ? Math.round((parseYmd(dMax) - parseYmd(dMin)) / 864e5) + 1 : 1, weeks = Math.max(1, days / 7);
+  const push = (musc.Chest || 0) + (musc.Shoulders || 0) + (musc.Triceps || 0), pull = (musc.Back || 0) + (musc.Biceps || 0), legs = (musc.Quads || 0) + (musc.Hamstrings || 0) + (musc.Glutes || 0) + (musc.Calves || 0);
+  if (push + pull + legs > 0) {
+    if (push > pull * 1.6 && pull >= 0) flags.push(`Pushing (${push} sets) clearly outweighs pulling (${pull} sets)`);
+    if (legs < (push + pull) * 0.25 && push + pull > 8) flags.push(`Leg work is low: ${legs} sets vs ${push + pull} upper-body sets`);
+  }
+  return { sets, vol: volAny ? vol : null, days, weeks, musc, exRows, flags, dMin, dMax, push, pull, legs };
+}
+
+/* ---- Google Sheet link -> CSV url ---- */
+function txSheetUrl(u) {
+  u = String(u || '').trim(); if (!/^https?:\/\/docs\.google\.com\/spreadsheets\//i.test(u)) return null;
+  const gid = (u.match(/[#&?]gid=(\d+)/) || [])[1];
+  if (/\/d\/e\//.test(u)) { let v = u.replace(/pubhtml/, 'pub'); v = /output=/.test(v) ? v.replace(/output=\w+/, 'output=csv') : v + (v.includes('?') ? '&' : '?') + 'output=csv'; return v; }
+  const id = (u.match(/\/spreadsheets\/d\/([A-Za-z0-9_-]+)/) || [])[1]; if (!id) return null;
+  return `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv${gid ? '&gid=' + gid : ''}`;
+}
+
+/* ---- UI ---- */
+function openTextImport() {
+  openSheet(s => {
+    const r = s.res; let out = '';
+    if (r) {
+      const w = r.fresh;
+      if (r.warns.length) out += `<section class="card" style="border-color:var(--warn)"><b>${r.warns.length} line${r.warns.length === 1 ? '' : 's'} could not be read</b><ul class="howto">${r.warns.slice(0, 8).map(x => `<li>${esc(x)}</li>`).join('')}</ul>${r.warns.length > 8 ? `<p class="note">…and ${r.warns.length - 8} more.</p>` : ''}<p class="note">Use a layout like “Squat 4x8 @ 80” or “Deadlift 100x5, 110x3”. Cardio and timed sets are not supported yet.</p></section>`;
+      if (r.dupes) out += `<p class="note">${r.dupes} workout${r.dupes === 1 ? ' is' : 's are'} already in your history and will be skipped.</p>`;
+      if (!w.length) out += `<div class="empty"><p><b>Nothing new to import.</b> ${r.dupes ? 'Everything here is already saved.' : 'No exercises were recognised. Check the layout hints above.'}</p></div>`;
+      else {
+        const a = r.an;
+        out += `<section class="card"><h3>Analysis</h3><p><b class="num">${w.length}</b> workout${w.length === 1 ? '' : 's'} · <b class="num">${a.sets}</b> sets${a.vol != null ? ` · ${fW(a.vol, 0)} ${wUnit()} volume` : ''} · ${esc(fmtDate(a.dMin))}${a.dMax !== a.dMin ? ' to ' + esc(fmtDate(a.dMax)) : ''}</p>`;
+        const ms = Object.entries(a.musc).sort((x, y) => y[1] - x[1]);
+        out += `<h3 class="sec">Sets per muscle${a.weeks > 1.4 ? ' (per week)' : ''}</h3>${ms.map(([m, n]) => `<div class="erow static"><span class="en"><b>${esc(m)}</b></span><span class="num">${a.weeks > 1.4 ? fmtN(n / a.weeks, 1) : n}</span></div>`).join('')}`;
+        if (a.push + a.pull + a.legs) out += `<p class="muted sm">Push ${a.push} · Pull ${a.pull} · Legs ${a.legs} sets</p>`;
+        if (a.flags.length) out += `<h3 class="sec">Worth a look</h3><ul class="howto">${a.flags.map(f => `<li>${esc(f)}</li>`).join('')}</ul>`;
+        out += `<h3 class="sec">Progress by exercise</h3>${a.exRows.map(x => `<div class="erow static"><span class="en"><b>${esc(x.name)}</b><small>${x.n} session${x.n === 1 ? '' : 's'} · ${esc(x.line)}</small></span></div>`).join('')}</section>`;
+        out += `<h3 class="sec">Will be saved</h3>${w.map(x => `<section class="card"><b>${esc(x.name)}</b><p class="muted sm">${esc(fmtDate(x.date))}</p>${x.exercises.map(e => `<div class="erow static"><span class="en"><b>${esc(e.name)}</b><small>${e.sets.map(setTxt).join('  ')}${e.exId ? '' : ' · not in your exercise list'}</small></span></div>`).join('')}</section>`).join('')}`;
+      }
+    }
+    const foot = r && r.fresh.length ? `<button class="btn primary grow" data-act="tx-save">Save ${r.fresh.length} workout${r.fresh.length === 1 ? '' : 's'} to history</button>` : '';
+    return sheetHTML({
+      title: 'Import workouts', close: 'x', foot, body: `<p class="muted">Paste your workouts, or load a Google Sheet. Examples:</p><pre class="note" style="white-space:pre-wrap">2026-10-12 Push day\nBench Press 4x8 @ 60\nOverhead Press 3x10 40kg\nDeadlift 100x5, 110x3\nPull Ups 3x8</pre><label class="lbl" for="tx-text">Workout text, or cells copied from a sheet</label><textarea class="in" id="tx-text" rows="8" data-d="text" placeholder="Paste here" autocomplete="off">${esc(s.draft.text)}</textarea><div class="grid2"><div><label class="lbl" for="tx-date">Date for lines without one</label><input class="in" id="tx-date" type="date" data-d="date" value="${esc(s.draft.date)}"></div></div><button class="btn primary" data-act="tx-run">Read &amp; analyze</button><label class="lbl" for="tx-url">Google Sheet link</label><input class="in" id="tx-url" type="url" data-d="url" value="${esc(s.draft.url)}" placeholder="https://docs.google.com/spreadsheets/d/…" autocomplete="off"><button class="btn" data-act="tx-fetch">Load sheet</button><p class="note">The sheet must be shared as “Anyone with the link can view”, or published to the web as CSV. Plain numbers are read in your current unit (${wUnit()}); write kg or lb to override. Weights are never sent anywhere. The link is only used to download the sheet.</p><div id="tx-res"></div>${out}`
+    });
+  }, { kind: 'txtimport', draft: { text: '', url: '', date: today() }, res: null });
+}
+function txRun(s) {
+  const d = s.draft; if (!d.text.trim()) { toast('Paste your workouts or load a sheet first.', 'err'); return; }
+  const p = txParse(d.text), b = txBuild(p.blocks, d.date || today());
+  s.res = { fresh: b.fresh, dupes: b.dupes, warns: p.warns, an: b.fresh.length ? txAnalyze(b.fresh) : null };
+  paintSheet(s);
+  const a = s.el.querySelector('#tx-res'); if (a && a.scrollIntoView) a.scrollIntoView({ block: 'start' });
+}
+ACT['tx-open'] = () => openTextImport();
+ACT['tx-run'] = el => txRun(sheetOf(el));
+ACT['tx-fetch'] = async el => {
+  const s = sheetOf(el), url = txSheetUrl(s.draft.url);
+  if (!url) { toast('Paste a Google Sheets link (docs.google.com/spreadsheets/…).', 'err'); return; }
+  toast('Loading sheet…');
+  try {
+    const res = await fetch(url, { credentials: 'omit' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const text = await res.text();
+    if (/^\s*<(!doctype|html)/i.test(text)) throw new Error('not csv');
+    s.draft.text = text; txRun(s);
+  } catch (e) { toast('Could not load the sheet. Share it as “Anyone with the link can view”, or copy the cells and paste them above.', 'err'); }
+};
+ACT['tx-save'] = el => {
+  const s = sheetOf(el), r = s.res; if (!r || !r.fresh.length) return;
+  r.fresh.forEach(w => put('workouts', w));
+  const n = r.fresh.length; closeSheet(s); ui.tab = 'training'; ui.tTab = 'history'; rerender(); window.scrollTo(0, 0);
+  toast(`Imported ${n} workout${n === 1 ? '' : 's'}`);
 };
 
 'use strict';
