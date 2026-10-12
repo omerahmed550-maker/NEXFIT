@@ -1,0 +1,16 @@
+# Secrets
+.env
+.env.*
+*.pem
+*.key
+secrets.*
+
+# Personal data exports from the app
+nexfit-backup-*.json
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+node_modules/

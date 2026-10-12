@@ -45,3 +45,7 @@ Training, History, "Import workouts" (also in Settings). Paste text or cells cop
 - Rest-timer sound and vibration only work while the app is open on screen. iOS does not allow a closed web app to ring.
 - Installed-app notifications need iOS 16.4+ and are not used by default.
 - Estimated 1RM uses the Epley formula and is a rough guide.
+
+## License and security
+- All rights reserved, see [LICENSE](LICENSE). The code is visible, but copying or commercial reuse needs written permission.
+- To report a vulnerability, see [SECURITY.md](SECURITY.md).
